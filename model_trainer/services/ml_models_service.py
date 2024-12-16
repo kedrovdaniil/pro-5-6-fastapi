@@ -40,7 +40,7 @@ def fit_model(request: FitRequest) -> FitResponse:
     # save to storage
     save_model_to_dir(learned_model, model_id, model_type)
 
-    t.sleep(5)
+    t.sleep(60)
 
     return FitResponse(message=f"Model '{model_id}' trained and saved.")
 
