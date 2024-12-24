@@ -2,6 +2,7 @@ import os
 import pickle
 import shutil
 import time as t
+from multiprocessing import Process
 
 from fastapi import HTTPException
 from sklearn.linear_model import LinearRegression, LogisticRegression
@@ -13,6 +14,22 @@ from model_trainer.serializers.models import FitRequest, FitResponse, LoadReques
 from model_trainer.services.state_service import service_state, INFERENCE_MODELS
 from model_trainer.services.storage_service import save_model_to_dir, remove_model_from_dir, load_models_from_dir
 from model_trainer.settings.config import MODELS_DIR, MAX_INFERENCE_MODELS
+
+def _parallel_fit_model(model_id, ml_model_type, X, y, hyperparameters):
+    if ml_model_type == "linear":
+        model = LinearRegression(**hyperparameters)
+        model_type = "LinearRegression"
+    elif ml_model_type == "logistic":
+        model = LogisticRegression(**hyperparameters)
+        model_type = "LogisticRegression"
+    else:
+        raise HTTPException(status_code=422, detail="Unsupported model type.")
+
+    learned_model = model.fit(X, y)
+    t.sleep(2)
+
+    # save to storage
+    save_model_to_dir(learned_model, model_id, model_type)
 
 def fit_model(request: FitRequest) -> FitResponse:
     ml_model_type = request.config.get('ml_model_type')
@@ -26,6 +43,14 @@ def fit_model(request: FitRequest) -> FitResponse:
     if os.path.exists(model_path):
         raise HTTPException(status_code=422, detail="Model ID already exists.")
 
+    # processes = [Process(target=_parallel_fit_model, args=(model_id, ml_model_type, X, y, hyperparameters)) for i in range(3)]
+    # for p in processes:
+    #     p.start()
+    # for p in processes:
+    #     p.join()
+
+    ###
+
     if ml_model_type == "linear":
         model = LinearRegression(**hyperparameters)
         model_type = "LinearRegression"
@@ -36,18 +61,19 @@ def fit_model(request: FitRequest) -> FitResponse:
         raise HTTPException(status_code=422, detail="Unsupported model type.")
 
     learned_model = model.fit(X, y)
+    t.sleep(2)
 
     # save to storage
     save_model_to_dir(learned_model, model_id, model_type)
 
-    t.sleep(60)
+    ###
 
     return FitResponse(message=f"Model '{model_id}' trained and saved.")
 
 def load_model(request: LoadRequest):
     model_id = request.id
 
-    inference_models = service_state.get_state_item(INFERENCE_MODELS)
+    inference_models: list = service_state.get_state_item(INFERENCE_MODELS)
     model_path = os.path.join(MODELS_DIR, f"{model_id}.pkl")
 
     if any(m.get('model_id') == model_id for m in inference_models):
@@ -118,12 +144,15 @@ def remove_model(model_id: str):
     # проверяем и удаляем модель из инференс зоны
     inference_models = service_state.get_state_item(INFERENCE_MODELS)
 
-    model_with_id_exists_in_inference = len(list(map(lambda m: m.get('model_id') == model_id, inference_models))) > 0
+    model_with_id_exists_in_inference = len(list(filter(lambda m: m.get('model_id') == model_id, inference_models))) > 0
     if model_with_id_exists_in_inference:
         service_state.set_state_item(INFERENCE_MODELS, filter(lambda m: m.get('model_id') != model_id, inference_models))
 
     # удаляем модель из storage
-    remove_model_from_dir(model_id)
+    try:
+        remove_model_from_dir(model_id)
+    except FileNotFoundError as e:
+        return RemoveResponse(message=f"Model was not found at storage.")
 
     return RemoveResponse(message=f"Model '{model_id}' removed")
 

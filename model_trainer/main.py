@@ -1,3 +1,8 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,14 +12,14 @@ from pydantic import BaseModel, ConfigDict
 from fastapi.middleware.cors import CORSMiddleware
 
 from model_trainer.api.v1.api_route import router
-from model_trainer.services.storage_service import load_models_from_dir
-from model_trainer.settings.config import MODELS_DIR
+from model_trainer.settings.config import MODELS_DIR, CPU_CORES
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_models_from_dir()
+    # init_state_file()
     yield
-
+    # remove_state_file()
 app = FastAPI(
     title="model_trainer",
     docs_url="/api/openapi",
@@ -47,4 +52,4 @@ async def root() -> StatusResponse:
 app.include_router(prefix="/api/v1/models", router=router)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, workers=CPU_CORES)

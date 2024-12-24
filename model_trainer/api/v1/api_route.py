@@ -1,3 +1,6 @@
+import asyncio
+import concurrent
+import multiprocessing
 from typing import Union, Dict, Any
 
 from fastapi import APIRouter
@@ -13,10 +16,18 @@ router = APIRouter()
 
 # API endpoints
 @router.post("/fit", status_code=HTTPStatus.CREATED)
-async def fit(request: FitRequest):
+def fit(request: FitRequest):
     # Реализуйте логику обучения и сохранения модели.
     # Обратите внимание на формат входных данных.
     # Обучать Нужно логистическую и линейную регрессии.
+
+    # loop = asyncio.get_event_loop()
+    # with concurrent.futures.ProcessPoolExecutor() as pool:
+    #     result = await loop.run_in_executor(pool, fit_model)
+
+    # with multiprocessing.Pool(3) as p:
+    #     result = p.map(fit_model, [1, 2, 3], )
+
     return fit_model(request)
 
 @router.post("/load", response_model=LoadResponse)
